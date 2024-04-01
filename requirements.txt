@@ -1,0 +1,4 @@
+ftfy
+praw
+pandas
+pyarrow
