@@ -30,9 +30,10 @@ def setup():
             'user_agent': temp_conf['user_agent'],
             'timeout': config['DEFAULT']['timeout']}
         
-        return ini_data
     except KeyError as e:
         exit(f"Invalid Ini File: {e} value(s) incorrect")
+    
+    return ini_data
 
 
 def search_subreddit(reddit: tuple, subreddit: str, term: str) -> None:
@@ -64,6 +65,8 @@ def search_subreddit(reddit: tuple, subreddit: str, term: str) -> None:
         # Write the header row
         writer.writerow(['Author', 'Title', 'Post Date', 'Text'])
         writer.writerows(posts)
+    
+    return
 
 
 def process_search_terms(subreddit: str):
