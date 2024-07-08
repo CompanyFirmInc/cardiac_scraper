@@ -1,18 +1,21 @@
 import re
 import csv
 import praw
+import uuid
+import requests
 import concurrent.futures
 import multiprocessing as mp
 
 from time import sleep
 from ftfy import fix_text
 from modules.helpers import touch, format_date
+from modules.auth_cardiac import auth
 from modules.cleanup import cleanup
 from modules.combine_module import combine
 
 
 
-def search_subreddit(lock: mp.Lock, reddit, subreddit: str, term: str) -> None:
+def search_subreddit(lock: mp.Lock, connection, subreddit: str, term: str) -> None:
     """A function which runs on each thread designed to collect posts and write them to a csv file.
 
     Args:
@@ -28,7 +31,7 @@ def search_subreddit(lock: mp.Lock, reddit, subreddit: str, term: str) -> None:
     print(term)
     
     # Search the subreddit for the term and write post details to the CSV
-    for submission in reddit.subreddit(subreddit).search(term, limit=1000):
+    for submission in connection.subreddit(subreddit).search(term, limit=1000):
         posts_collected += 1
         posts.append([submission.title,submission.author.name if submission.author else f"Deleted {unattr_posts}",
                     submission.title,
@@ -50,7 +53,7 @@ def search_subreddit(lock: mp.Lock, reddit, subreddit: str, term: str) -> None:
         lock.release()
 
 
-def process_search_terms(subreddit: str):
+def process_search_terms(subreddit: str, connection: object) -> None:
     """A function designed to be multiprocessed which handles calling multiple threads
     to parallelise the web scraping of reddit data from multiple subreddits.
 
@@ -66,36 +69,28 @@ def process_search_terms(subreddit: str):
                     "subcutaneous implantable cardioverter-defibrillator"]
     
     # need api access per process so it isn't being passed around
-    reddit = praw.Reddit("scraper", ratelimit_seconds=300)
     
     # multiprocess searching
-    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as exec:
-        for term in search_terms:
-            exec.submit(search_subreddit, mp.Lock(), reddit, subreddit, term)
-            sleep(1)
+    for term in search_terms:
+        search_subreddit(mp.Lock(), connection, subreddit, term)
+        sleep(1.5)
     
     print(f"Data written to reddit_posts_{subreddit}.csv", flush=True)
 
 
-def main():
+def main(connection: object):
     # Initialize PRAW with your client credentials
     subreddits = ['AskDocs', 'Heartfailure', 'askCardiology', 'pacemakerICD']
-    
     for subreddit in subreddits:
         filename = f"reddit_posts_{subreddit}.csv"
         touch(filename)
     
-    processes = []
-    
     # create a process pool with a list of subreddits
     for sub in subreddits:
-        process = mp.Process(target=process_search_terms, args=(sub,))
-        processes.append(process)
-        process.start()
-    
-    for process in processes:
-        process.join()
+        process_search_terms(sub, connection)
 
+    exit(0)
+    
     # try:
     #     for sub in subreddits: 
     #         cleanup(sub)
@@ -104,5 +99,6 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    connection = auth()
+    main(connection)
     # combine()
